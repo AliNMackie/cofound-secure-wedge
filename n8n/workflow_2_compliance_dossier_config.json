@@ -1,0 +1,16 @@
+{
+  "workflow_name": "Compliance Dossier Generator",
+  "description": "Generate and store PDF compliance reports for assessments",
+  "webhook_base_url": "https://n8n.ir35-platform.com/webhook",
+  "active": true,
+  "logging": {
+    "level": "INFO",
+    "destination": "Google Cloud Logging"
+  },
+  "env_vars_required": [
+    "PROJECT_ID",
+    "FIRESTORE_PROJECT_ID",
+    "ASSESSMENT_COLLECTION",
+    "DOSSIER_BUCKET"
+  ]
+}

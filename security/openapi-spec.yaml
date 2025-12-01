@@ -1,0 +1,83 @@
+openapi: 3.0.0
+info:
+  title: IR35 Assessment API
+  description: API for conducting IR35 status assessments.
+  version: 1.0.0
+servers:
+  - url: https://ir35-api-gateway-HASH.gateway.dev
+    description: Production API Gateway
+paths:
+  /assess_engagement:
+    post:
+      summary: Assess an engagement
+      operationId: assessEngagement
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentRequest'
+      responses:
+        '200':
+          description: Assessment completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResponse'
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+      x-google-backend:
+        address: ${ASSESSMENT_API_URL}
+        jwt_audience: ${ASSESSMENT_API_URL}
+        deadline: 60.0
+
+components:
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: x-api-key
+      in: header
+
+  schemas:
+    AssessmentRequest:
+      type: object
+      required:
+        - engagement_id
+        - role_details
+        - answers
+      properties:
+        engagement_id:
+          type: string
+          description: Unique identifier for the engagement
+        role_details:
+          type: string
+          description: Description of the role
+        contract_type:
+          type: string
+          description: Type of contract
+        answers:
+          type: object
+          additionalProperties: true
+          description: Questionnaire answers
+
+    AssessmentResponse:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+        status:
+          type: string
+        determination:
+          type: string
+        confidence_score:
+          type: number
+          format: float
+        reasoning:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
