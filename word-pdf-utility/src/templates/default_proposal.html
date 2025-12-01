@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; }
+        h1 { color: #333; }
+        .content { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Proposal for {{ client_id }}</h1>
+    <h2>{{ title }}</h2>
+    <div class="content">
+        {{ content }}
+    </div>
+    <h3>Key Points</h3>
+    <ul>
+    {% for point in key_points %}
+        <li>{{ point }}</li>
+    {% endfor %}
+    </ul>
+</body>
+</html>
