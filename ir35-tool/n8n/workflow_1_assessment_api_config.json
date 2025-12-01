@@ -1,0 +1,15 @@
+{
+  "workflow_name": "Assessment API - Contractor Determination",
+  "description": "Route contractor data through IR35 assessment engine",
+  "webhook_base_url": "https://n8n.ir35-platform.com/webhook",
+  "active": true,
+  "logging": {
+    "level": "INFO",
+    "destination": "Google Cloud Logging"
+  },
+  "env_vars_required": [
+    "PROJECT_ID",
+    "ASSESSMENT_API_ENDPOINT",
+    "ASSESSMENT_API_KEY"
+  ]
+}

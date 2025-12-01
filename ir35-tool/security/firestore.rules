@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is the specific service account
+    // Note: This relies on auth token having email. 
+    // Cloud Functions via Admin SDK bypass rules, but if using Client SDK with auth:
+    function isAssessmentAPI() {
+      return request.auth != null && request.auth.token.email == 'ir35-cloud-function-sa@PROJECT_ID.iam.gserviceaccount.com';
+    }
+
+    // Assessments Collection
+    // Read/Write: Only Assessment API Service Account
+    match /assessments/{document=**} {
+      allow read, write: if isAssessmentAPI();
+    }
+
+    // Audit Log Collection
+    // Read: Admin only (using same SA for now or specific admin one)
+    // Write: Only create, no update/delete (Immutable)
+    match /audit_log/{document=**} {
+      allow read: if isAssessmentAPI();
+      allow create: if isAssessmentAPI();
+      allow update, delete: if false;
+    }
+
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "name": "Compliance Dossier Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "dossier",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "webhookId": "dossier-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "projectId": "={{ $env.FIRESTORE_PROJECT_ID }}",
+        "collection": "={{ $env.ASSESSMENT_COLLECTION || 'ir35_assessments' }}",
+        "documentId": "={{ $json.body.engagement_id }}",
+        "options": {}
+      },
+      "id": "firestore-lookup",
+      "name": "Firestore Lookup",
+      "type": "n8n-nodes-base.googleFirestore",
+      "typeVersion": 1,
+      "position": [300, 300],
+      "credentials": {
+        "googleFirebaseAdminSdk": {
+          "id": "google-firebase-credentials",
+          "name": "Google Firebase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate Data\nif (!items.length || Object.keys(items[0].json).length === 0) {\n  throw new Error('Assessment not found in Firestore');\n}\n\nconst data = items[0].json;\nif (!data.response || !data.response.determination) {\n  throw new Error('Invalid assessment data structure');\n}\n\nreturn items;"
+      },
+      "id": "validate-data",
+      "name": "Validate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate HTML Content (Mock PDF Generation)\n// In a real production setup, we would pipe this HTML to a 'HTML to PDF' node (e.g. Puppeteer/Gotenberg)\n// or use a library if available in the n8n docker image.\n// For this workflow file, we will create a binary buffer representing the PDF.\n\nconst fs = require('fs');\n// const template = fs.readFileSync('/home/node/.n8n/templates/dossier_template.html', 'utf8'); \n// Assuming template is loaded or embedded for simplicity in this mock:\n\nconst assessment = items[0].json;\nconst engagementId = assessment.request.engagement_id;\nconst timestamp = new Date().toISOString();\n\n// Mock PDF Buffer (Simple text for now as we can't run pdf libs without install)\n// In 10/10 prod, this node would be 'HTML to PDF'\nconst pdfContent = `IR35 COMPLIANCE DOSSIER\\n\\nEngagement ID: ${engagementId}\\nTimestamp: ${timestamp}\\nDetermination: ${assessment.response.determination}\\nScore: ${assessment.response.confidence_score}`;\n\nconst binaryData = Buffer.from(pdfContent, 'utf8');\n\nreturn [{\n  json: {\n    engagement_id: engagementId,\n    timestamp: timestamp,\n    filename: `assessment_${timestamp.replace(/:/g, '-')}.pdf`\n  },\n  binary: {\n    data: {\n      data: binaryData.toString('base64'),\n      mimeType: 'application/pdf',\n      fileName: `assessment_${timestamp.replace(/:/g, '-')}.pdf`\n    }\n  }\n}];"
+      },
+      "id": "generate-pdf",
+      "name": "Generate PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "bucketName": "={{ $env.DOSSIER_BUCKET }}",
+        "fileName": "={{ 'dossier/' + $json.engagement_id + '/' + $json.filename }}",
+        "binaryPropertyName": "data",
+        "options": {
+          "predefinedAcl": "publicRead"
+        }
+      },
+      "id": "upload-gcs",
+      "name": "Upload to GCS",
+      "type": "n8n-nodes-base.googleCloudStorage",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "googleCloudStorageApi": {
+          "id": "google-cloud-storage-credentials",
+          "name": "Google Cloud Storage Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "projectId": "={{ $env.FIRESTORE_PROJECT_ID }}",
+        "collection": "audit_log",
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "engagement_id": "={{ $json.engagement_id }}",
+            "action": "dossier_generated",
+            "timestamp": "={{ $json.timestamp }}",
+            "file_path": "={{ 'gs://' + $env.DOSSIER_BUCKET + '/dossier/' + $json.engagement_id + '/' + $json.filename }}",
+            "status": "success"
+          },
+          "matchingColumns": [],
+          "schema": []
+        }
+      },
+      "id": "audit-log",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleFirestore",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "credentials": {
+        "googleFirebaseAdminSdk": {
+          "id": "google-firebase-credentials",
+          "name": "Google Firebase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  status: 'success',\n  dossier_url: 'https://storage.googleapis.com/' + $env.DOSSIER_BUCKET + '/dossier/' + $json.engagement_id + '/' + $json.filename,\n  engagement_id: $json.engagement_id,\n  generated_at: $json.timestamp\n}) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://logging.googleapis.com/v2/entries:write",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "entries",
+              "value": "={{ [{\n  \"logName\": \"projects/\" + $env.PROJECT_ID + \"/logs/n8n-dossier-workflow\",\n  \"resource\": {\n    \"type\": \"global\"\n  },\n  \"jsonPayload\": {\n    \"event\": \"workflow_error\",\n    \"error\": $input.item.json.error || $input.item.error.message,\n    \"timestamp\": new Date().toISOString()\n  },\n  \"severity\": \"ERROR\"\n}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 500],
+      "credentials": {
+        "googleCloudApi": {
+          "id": "google-cloud-credentials",
+          "name": "Google Cloud Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: $input.item.json.error || 'Internal Server Error' }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond 500",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 500]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Firestore Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firestore Lookup": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF": {
+      "main": [
+        [
+          {
+            "node": "Upload to GCS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to GCS": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+functions-framework==3.4.0
+pydantic==2.5.2
+google-cloud-aiplatform==1.38.1
+google-cloud-firestore==2.14.0
+google-cloud-secret-manager==2.16.4
+google-cloud-logging==3.6.0

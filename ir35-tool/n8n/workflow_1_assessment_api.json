@@ -1,0 +1,291 @@
+{
+  "name": "Assessment API - Contractor Determination",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "assessment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "webhookId": "assessment-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate Request Schema\nconst body = items[0].json.body;\nconst headers = items[0].json.headers;\n\n// 1. Auth Check (Simple API Key check)\n// Assuming client sends 'x-api-key'\nconst apiKey = $env.ASSESSMENT_API_KEY;\nif (!headers['x-api-key'] || headers['x-api-key'] !== apiKey) {\n  throw new Error('Unauthorized: Invalid API Key');\n}\n\n// 2. Schema Validation\nconst requiredFields = ['engagement_id', 'contractor_name', 'client_name', 'role_details', 'answers'];\nconst missingFields = requiredFields.filter(field => !body[field]);\n\nif (missingFields.length > 0) {\n  throw new Error(`Validation Error: Missing fields: ${missingFields.join(', ')}`);\n}\n\nreturn items;"
+      },
+      "id": "validation-node",
+      "name": "Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://logging.googleapis.com/v2/entries:write",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "entries",
+              "value": "={{ [{\n  \"logName\": \"projects/\" + $env.PROJECT_ID + \"/logs/n8n-assessment-workflow\",\n  \"resource\": {\n    \"type\": \"global\"\n  },\n  \"jsonPayload\": {\n    \"event\": \"assessment_request_received\",\n    \"engagement_id\": $json.body.engagement_id,\n    \"contractor_name\": $json.body.contractor_name,\n    \"timestamp\": new Date().toISOString()\n  },\n  \"severity\": \"INFO\"\n}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-request",
+      "name": "Log Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [500, 300],
+      "credentials": {
+        "googleCloudApi": {
+          "id": "google-cloud-credentials",
+          "name": "Google Cloud Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ASSESSMENT_API_ENDPOINT }}/assess_engagement",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ASSESSMENT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "engagement_id",
+              "value": "={{ $json.body.engagement_id }}"
+            },
+            {
+              "name": "role_details",
+              "value": "={{ $json.body.role_details }}"
+            },
+            {
+              "name": "contract_type",
+              "value": "={{ $json.body.contract_type }}"
+            },
+            {
+              "name": "answers",
+              "value": "={{ $json.body.answers }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "api-call",
+      "name": "Call Assessment API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [700, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for API errors\nif (items[0].error) {\n  throw new Error(`API Error: ${items[0].error.message}`);\n}\n\nconst apiResponse = items[0].json;\n\n// Process Response\nreturn [{\n  json: {\n    status: apiResponse.status,\n    risk_score: apiResponse.confidence_score,\n    determination: apiResponse.determination,\n    engagement_id: apiResponse.assessment_id,\n    audit_hash: 'mock_hash_' + apiResponse.assessment_id // In real scenario, calculate actual hash\n  }\n}];"
+      },
+      "id": "process-response",
+      "name": "Process Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://logging.googleapis.com/v2/entries:write",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "entries",
+              "value": "={{ [{\n  \"logName\": \"projects/\" + $env.PROJECT_ID + \"/logs/n8n-assessment-workflow\",\n  \"resource\": {\n    \"type\": \"global\"\n  },\n  \"jsonPayload\": {\n    \"event\": \"assessment_completed\",\n    \"engagement_id\": $json.engagement_id,\n    \"determination\": $json.determination,\n    \"risk_score\": $json.risk_score,\n    \"timestamp\": new Date().toISOString()\n  },\n  \"severity\": \"INFO\"\n}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1100, 300],
+      "credentials": {
+        "googleCloudApi": {
+          "id": "google-cloud-credentials",
+          "name": "Google Cloud Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://logging.googleapis.com/v2/entries:write",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "entries",
+              "value": "={{ [{\n  \"logName\": \"projects/\" + $env.PROJECT_ID + \"/logs/n8n-assessment-workflow\",\n  \"resource\": {\n    \"type\": \"global\"\n  },\n  \"jsonPayload\": {\n    \"event\": \"workflow_error\",\n    \"error\": $input.item.json.error || $input.item.error.message,\n    \"timestamp\": new Date().toISOString()\n  },\n  \"severity\": \"ERROR\"\n}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 500],
+      "credentials": {
+        "googleCloudApi": {
+          "id": "google-cloud-credentials",
+          "name": "Google Cloud Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: $input.item.json.error || 'Internal Server Error' }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond 500",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 500]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation": {
+      "main": [
+        [
+          {
+            "node": "Log Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Request": {
+      "main": [
+        [
+          {
+            "node": "Call Assessment API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Assessment API": {
+      "main": [
+        [
+          {
+            "node": "Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Response": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

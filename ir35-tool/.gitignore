@@ -1,0 +1,61 @@
+--- Security (Whitelist Strategy) ---
+
+Ignore ALL json files by default (Blocks Service Account Keys)
+
+*.json
+
+--- Exceptions (Allow these specific configs) ---
+
+!package.json
+!package-lock.json
+!tsconfig.json
+!n8n/*.json
+!firebase.json
+!firestore.indexes.json
+
+--- Standard Secrets ---
+
+.env
+*.env
+secrets/
+*.key
+*.pem
+service-account.json
+
+--- Terraform ---
+
+.terraform/
+*.tfstate
+.tfstate.
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+
+.terraform.lock.hcl is committed (Correct)
+
+--- Python ---
+
+pycache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+
+--- Node & Tools ---
+
+node_modules/
+npm-debug.log
+yarn-error.log
+
+--- System & Archives ---
+
+.DS_Store
+Thumbs.db
+*.zip
+*.tar.gz
+*.pkl
+.vscode/
+.idea/
