@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+google-cloud-storage
+google-cloud-firestore
+google-cloud-pubsub
+google-cloud-dlp
+google-cloud-aiplatform
+pydantic
+python-multipart
+pypdf
