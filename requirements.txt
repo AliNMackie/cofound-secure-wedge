@@ -1,0 +1,10 @@
+fastapi>=0.109.0
+uvicorn[standard]
+google-cloud-storage
+google-generativeai
+weasyprint>=60.0
+docxtpl>=0.16.0
+structlog
+pydantic-settings
+python-multipart
+jinja2
