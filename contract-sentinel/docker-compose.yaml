@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  pubsub-emulator:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+    environment:
+      - PUBSUB_EMULATOR_HOST=0.0.0.0:8085
+
+  firestore-emulator:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators firestore start --project=test-project --host-port=0.0.0.0:8080
+    ports:
+      - "8082:8080"
+    environment:
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+
+  api:
+    build:
+      context: .
+      target: api
+      args:
+        SERVICE_NAME: api
+    ports:
+      - "8080:8080"
+    environment:
+      - PROJECT_ID=test-project
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - BUCKET_NAME=test-bucket
+      - TOPIC_ID=contract-ingestion-queue
+      # Cloud credentials not needed for emulators usually, but sometimes client libs check
+      - GOOGLE_APPLICATION_CREDENTIALS=/dev/null 
+    depends_on:
+      - pubsub-emulator
+      - firestore-emulator
+
+  worker:
+    build:
+      context: .
+      target: worker
+      args:
+        SERVICE_NAME: worker
+    environment:
+      - PROJECT_ID=test-project
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - SUBSCRIPTION_ID=worker-sub
+      - GOOGLE_APPLICATION_CREDENTIALS=/dev/null
+    depends_on:
+      - pubsub-emulator
+      - firestore-emulator
