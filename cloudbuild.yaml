@@ -1,0 +1,34 @@
+steps:
+  # Step 1: Build the Docker image from the contract-sentinel directory
+  # Note: This assumes your Dockerfile is inside the contract-sentinel folder.
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+      - '.'
+    dir: 'contract-sentinel' 
+    timeout: '900s' # Allow time for dependencies/RAG setup
+
+  # Step 2: Push the image to the Artifact Registry (Central Hub)
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+    
+  # Step 3: Deploy the image to Cloud Run (London Locked)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'contract-agent-service'
+      - '--image'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west2'
+      - '--platform'
+      - 'managed'
+      - '--no-allow-unauthenticated' # Enforces internal/authenticated access (security best practice)
+
+images:
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
