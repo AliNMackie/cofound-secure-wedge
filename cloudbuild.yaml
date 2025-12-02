@@ -1,16 +1,17 @@
 steps:
-  # Step 1: Build the Docker image from the contract-sentinel directory
-  # Note: This assumes your Dockerfile is inside the contract-sentinel folder.
+  # Step 1: Build the Docker image from the ROOT context
+  # We removed "dir: contract-sentinel" so we can see the 'shared' folder
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
       - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
-      - '.'
-    dir: 'contract-sentinel' 
-    timeout: '900s' # Allow time for dependencies/RAG setup
+      - '-f'                          # Flag to specify the Dockerfile path
+      - 'contract-sentinel/Dockerfile' # Path to Dockerfile relative to root
+      - '.'                           # Context is now the ROOT of the repo
+    timeout: '900s'
 
-  # Step 2: Push the image to the Artifact Registry (Central Hub)
+  # Step 2: Push the image to the Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
@@ -28,11 +29,10 @@ steps:
       - 'europe-west2'
       - '--platform'
       - 'managed'
-      - '--no-allow-unauthenticated' # Enforces internal/authenticated access (security best practice)
+      - '--no-allow-unauthenticated'
+    
 options:
-  logging: CLOUD_LOGGING_ONLY # Fixes the Service Account logging permission error
-  
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
-
-  
