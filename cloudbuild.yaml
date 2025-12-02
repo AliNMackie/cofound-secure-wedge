@@ -37,3 +37,4 @@ options:
 
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+  
