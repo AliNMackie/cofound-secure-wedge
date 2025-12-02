@@ -1,14 +1,15 @@
 steps:
   # Step 1: Build the Docker image from the ROOT context
-  # We removed "dir: contract-sentinel" so we can see the 'shared' folder
+  # We use '.' as the last argument to set the context to the repo root.
+  # We use '-f' to point to the specific Dockerfile inside the subdirectory.
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
       - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
-      - '-f'                          # Flag to specify the Dockerfile path
+      - '-f'
       - 'contract-sentinel/Dockerfile' # Path to Dockerfile relative to root
-      - '.'                           # Context is now the ROOT of the repo
+      - '.'                            # Build Context: Root of the repo
     timeout: '900s'
 
   # Step 2: Push the image to the Artifact Registry
@@ -16,7 +17,7 @@ steps:
     args:
       - 'push'
       - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
-    
+
   # Step 3: Deploy the image to Cloud Run (London Locked)
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
@@ -30,7 +31,7 @@ steps:
       - '--platform'
       - 'managed'
       - '--no-allow-unauthenticated'
-    
+
 options:
   logging: CLOUD_LOGGING_ONLY
 
