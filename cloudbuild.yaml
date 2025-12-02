@@ -29,6 +29,10 @@ steps:
       - '--platform'
       - 'managed'
       - '--no-allow-unauthenticated' # Enforces internal/authenticated access (security best practice)
-
+options:
+  logging: CLOUD_LOGGING_ONLY # Fixes the Service Account logging permission error
+  
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+
+  
