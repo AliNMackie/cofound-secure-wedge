@@ -1,36 +1,80 @@
 steps:
-  # Step 1: Build the Docker image from the ROOT context
-  # We use '.' as the last argument to set the context to the repo root.
-  # We use '-f' to point to the specific Dockerfile inside the subdirectory.
+  # Step 1: Build the API image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
-      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:api-$COMMIT_SHA'
+      - '--build-arg'
+      - 'SERVICE_NAME=api'
       - '-f'
-      - 'contract-sentinel/Dockerfile' # Path to Dockerfile relative to root
-      - '.'                            # Build Context: Root of the repo
+      - 'contract-sentinel/Dockerfile'
+      - '.'
     timeout: '900s'
 
-  # Step 2: Push the image to the Artifact Registry
+  # Step 2: Build the Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:worker-$COMMIT_SHA'
+      - '--build-arg'
+      - 'SERVICE_NAME=worker'
+      - '-f'
+      - 'contract-sentinel/Dockerfile'
+      - '.'
+    timeout: '900s'
+
+  # Step 3: Push API image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:api-$COMMIT_SHA'
 
-  # Step 3: Deploy the image to Cloud Run (London Locked)
+  # Step 4: Push Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:worker-$COMMIT_SHA'
+
+  # Step 5: Deploy API service (contract-agent-service)
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
       - 'run'
       - 'deploy'
       - 'contract-agent-service'
       - '--image'
-      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:$COMMIT_SHA'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:api-$COMMIT_SHA'
       - '--region'
       - 'europe-west2'
       - '--platform'
       - 'managed'
       - '--no-allow-unauthenticated'
+      - '--ingress'
+      - 'internal'
+
+  # Step 6: Deploy Worker service (contract-sentinel-service)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'contract-sentinel-service'
+      - '--image'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:worker-$COMMIT_SHA'
+      - '--region'
+      - 'europe-west2'
+      - '--platform'
+      - 'managed'
+      - '--no-allow-unauthenticated'
+      - '--ingress'
+      - 'internal'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:api-$COMMIT_SHA'
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cofound-app-registry/secure-wedge:worker-$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
