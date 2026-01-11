@@ -18,9 +18,12 @@ try:
 except Exception as e:
     # Fallback for local testing if credentials aren't present
     print(f"Warning: Cloud clients failed to initialize: {e}")
-    storage_client = None
     pubsub_publisher = None
     firestore_client = None
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 @app.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_contract(
